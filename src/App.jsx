@@ -1,4 +1,4 @@
-// PDF-to-Word Converter React Component (fixed worker version handling)
+// PDF-to-Word Converter React Component (fixed Packer toBuffer issue)
 import React, { useState, useRef } from "react";
 import { saveAs } from "file-saver";
 import { Document, Packer, Paragraph, TextRun, ImageRun } from "docx";
@@ -6,26 +6,19 @@ import { motion } from "framer-motion";
 import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf";
 import "tailwindcss/tailwind.css";
 
-// Dynamically point the workerSrc to the same version as the installed pdfjs-dist package.
-// This prevents mismatched-version errors like:
-// The API version "3.11.174" does not match the Worker version "3.6.172".
 (function setPdfWorker() {
   try {
     const ver = (pdfjsLib && pdfjsLib.version) ? pdfjsLib.version : null;
     if (ver) {
       pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${ver}/build/pdf.worker.min.js`;
     } else {
-      // fallback to a generic worker path (no version). Not ideal but better than hardcoding an old version.
       pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://unpkg.com/pdfjs-dist/build/pdf.worker.min.js';
     }
   } catch (e) {
-    // As a last resort, set to a non-versioned CDN path
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://unpkg.com/pdfjs-dist/build/pdf.worker.min.js';
-    console.warn('Could not determine pdfjs version; using fallback worker path.', e);
   }
 })();
 
-// Helper functions
 function sanitizeFileName(name) {
   return name.replace(/[\\/:*?"<>|]/g, '_');
 }
@@ -120,11 +113,10 @@ export default function App() {
       doc.addSection({ children: sectionChildren });
       setMessage('正在生成 Word 文档...');
 
-      const packer = new Packer();
-      const buffer = await packer.toBuffer(doc);
-      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+      // Use Packer.toBlob instead of toBuffer for browser
+      const blobOut = await Packer.toBlob(doc);
       const outName = sanitizeFileName(fileName.replace(/\.pdf$/i, '') || 'converted') + '.docx';
-      saveAs(blob, outName);
+      saveAs(blobOut, outName);
 
       setProgress(100);
       setMessage('转换完成 — 已下载 .docx 文件');
